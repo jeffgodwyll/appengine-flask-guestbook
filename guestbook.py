@@ -1,24 +1,21 @@
-import os
 import urllib
 
 from google.appengine.api import users
 from google.appengine.ext import ndb
 
-import jinja2
-import webapp2
+from flask import Flask, render_template, request, redirect, url_for
 
-JINJA_ENVIRONMENT = jinja2.Environment(
-    loader=jinja2.FileSystemLoader(os.path.dirname(__file__)),
-    extensions=['jinja2.ext.autoescape'],
-    autoescape=True)
 
 DEFAULT_GUESTBOOK_NAME = 'default_guestbook'
 
+
+app = Flask(__name__)
 
 # We set a parent key on the 'Greetings' to ensure that they are all
 # in the same entity group. Queries across the single entity group
 # will be consistent. However, the write rate should be limited to
 # ~1/second.
+
 
 def guestbook_key(guestbook_name=DEFAULT_GUESTBOOK_NAME):
     """Constructs a Datastore key for a Guestbook entity.
@@ -41,60 +38,53 @@ class Greeting(ndb.Model):
     date = ndb.DateTimeProperty(auto_now_add=True)
 
 
-class MainPage(webapp2.RequestHandler):
+@app.route('/', methods=['GET', 'POST'])
+def home():
+    if request.args.get('guestbook_name'):
+        guestbook_name = request.args.get('guestbook_name')
+    else:
+        guestbook_name = DEFAULT_GUESTBOOK_NAME
 
-    def get(self):
-        guestbook_name = self.request.get('guestbook_name',
-                                          DEFAULT_GUESTBOOK_NAME)
-        greetings_query = Greeting.query(
-            ancestor=guestbook_key(guestbook_name)).order(-Greeting.date)
-        greetings = greetings_query.fetch(10)
+    greetings_query = Greeting.query(
+        ancestor=guestbook_key(guestbook_name)).order(-Greeting.date)
+    greetings = greetings_query.fetch(10)
 
-        user = users.get_current_user()
-        if user:
-            url = users.create_logout_url(self.request.uri)
-            url_linktext = 'Logout'
-        else:
-            url = users.create_login_url(self.request.uri)
-            url_linktext = 'Login'
+    user = users.get_current_user()
+    if user:
+        url = users.create_logout_url(url_for('home'))
+        url_linktext = 'Logout'
+    else:
+        url = users.create_login_url(url_for('home'))
+        url_linktext = 'Login'
 
-        template_values = {
-            'user': user,
-            'greetings': greetings,
-            'guestbook_name': urllib.quote_plus(guestbook_name),
-            'url': url,
-            'url_linktext': url_linktext,
-        }
-
-        template = JINJA_ENVIRONMENT.get_template('index.html')
-        self.response.write(template.render(template_values))
+    return render_template(
+        'index.html',
+        user=user, greetings=greetings,
+        guestbook_name=urllib.quote_plus(guestbook_name),
+        url=url, url_linktext=url_linktext)
 
 
-class Guestbook(webapp2.RequestHandler):
+@app.route('/sign', methods=['POST'])
+def sign():
 
-    def post(self):
-        # We set the same parent key on the 'Greeting' to ensure each
-        # Greeting is in the same entity group. Queries across the
-        # single entity group will be consistent. However, the write
-        # rate to a single entity group should be limited to
-        # ~1/second.
-        guestbook_name = self.request.get('guestbook_name',
-                                          DEFAULT_GUESTBOOK_NAME)
-        greeting = Greeting(parent=guestbook_key(guestbook_name))
+    # We set the same parent key on the 'Greeting' to ensure each
+    # Greeting is in the same entity group. Queries across the
+    # single entity group will be consistent. However, the write
+    # rate to a single entity group should be limited to
+    # ~1/second.
+    if request.args.get('guestbook_name'):
+        guestbook_name = request.args.get('guestbook_name')
+    else:
+        guestbook_name = DEFAULT_GUESTBOOK_NAME
+    greeting = Greeting(parent=guestbook_key(guestbook_name))
 
-        if users.get_current_user():
-            greeting.author = Author(
-                    identity=users.get_current_user().user_id(),
-                    email=users.get_current_user().email())
+    if users.get_current_user():
+        greeting.author = Author(
+            identity=users.get_current_user().user_id(),
+            email=users.get_current_user().email())
 
-        greeting.content = self.request.get('content')
-        greeting.put()
+    greeting.content = request.form['content']
+    greeting.put()
 
-        query_params = {'guestbook_name': guestbook_name}
-        self.redirect('/?' + urllib.urlencode(query_params))
-
-
-app = webapp2.WSGIApplication([
-    ('/', MainPage),
-    ('/sign', Guestbook),
-], debug=True)
+    query_params = {'guestbook_name': guestbook_name}
+    return redirect(url_for('home') + '?' + urllib.urlencode(query_params))
