@@ -1,6 +1,5 @@
-import cgi
-from google.appengine.api import users
-import webapp2
+from flask import Flask, render_template_string, request
+
 
 MAIN_PAGE_HTML = """\
 <html>
@@ -13,17 +12,16 @@ MAIN_PAGE_HTML = """\
 </html>
 """
 
-class MainPage(webapp2.RequestHandler):
-    def get(self):
-        self.response.write(MAIN_PAGE_HTML)
+app = Flask(__name__)
 
-class Guestbook(webapp2.RequestHandler):
-    def post(self):
-        self.response.write('<html><body>You wrote:<pre>')
-        self.response.write(cgi.escape(self.request.get('content')))
-        self.response.write('</pre></body></html>')
 
-app = webapp2.WSGIApplication([
-    ('/', MainPage),
-    ('/sign', Guestbook),
-], debug=True)
+@app.route('/')
+def home():
+    return render_template_string(MAIN_PAGE_HTML)
+
+
+@app.route('/sign', methods=['GET', 'POST'])
+def guestbook():
+    return render_template_string('<html><body>You wrote:<pre>' +
+                                  request.form['content'] +
+                                  '</pre></body></html>')
