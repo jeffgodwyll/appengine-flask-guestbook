@@ -1,4 +1,3 @@
-import cgi
 import urllib
 
 from google.appengine.api import users
@@ -6,7 +5,7 @@ from google.appengine.api import users
 from google.appengine.ext import ndb
 # [END import_ndb]
 
-from flask import Flask, render_template_string, request, redirect
+from flask import Flask, render_template_string, request, redirect, escape
 
 
 MAIN_PAGE_FOOTER_TEMPLATE = """\
@@ -90,7 +89,7 @@ def home():
         else:
             html = render_template_string(html + 'An anonymous person wrote:')
         html = render_template_string(html + '<blockquote>%s</blockquote>' %
-                                      cgi.escape(greeting.content))
+                                      escape(greeting.content))
 
     if user:
         url = users.create_logout_url('/')
@@ -104,7 +103,7 @@ def home():
                                           guestbook_name})
     html = render_template_string(
         html + (MAIN_PAGE_FOOTER_TEMPLATE %
-                (sign_query_params, cgi.escape(guestbook_name),
+                (sign_query_params, escape(guestbook_name),
                  url, url_linktext)))
     return html
 # [END main_page]
