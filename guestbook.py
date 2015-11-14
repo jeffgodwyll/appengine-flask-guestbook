@@ -6,7 +6,8 @@ from google.appengine.api import users
 from google.appengine.ext import ndb
 # [END import_ndb]
 
-import webapp2
+from flask import Flask, render_template_string, request, redirect
+
 
 MAIN_PAGE_FOOTER_TEMPLATE = """\
     <form action="/sign?%s" method="post">
@@ -24,6 +25,9 @@ MAIN_PAGE_FOOTER_TEMPLATE = """\
 """
 
 DEFAULT_GUESTBOOK_NAME = 'default_guestbook'
+
+app = Flask(__name__)
+
 
 # We set a parent key on the 'Greetings' to ensure that they are all
 # in the same entity group. Queries across the single entity group
@@ -54,76 +58,80 @@ class Greeting(ndb.Model):
 
 
 # [START main_page]
-class MainPage(webapp2.RequestHandler):
-    def get(self):
-        self.response.write('<html><body>')
-        guestbook_name = self.request.get('guestbook_name',
-                                          DEFAULT_GUESTBOOK_NAME)
+@app.route('/')
+def home():
+    if request.args.get('guestbook_name'):
+        guestbook_name = request.args.get('guestbook_name')
+    else:
+        guestbook_name = DEFAULT_GUESTBOOK_NAME
 
-        # Ancestor Queries, as shown here, are strongly consistent
-        # with the High Replication Datastore. Queries that span
-        # entity groups are eventually consistent. If we omitted the
-        # ancestor from this query there would be a slight chance that
-        # Greeting that had just been written would not show up in a
-        # query.
-        # [START query]
-        greetings_query = Greeting.query(
-            ancestor=guestbook_key(guestbook_name)).order(-Greeting.date)
-        greetings = greetings_query.fetch(10)
-        # [END query]
+    html = render_template_string('<html><body>')
 
-        user = users.get_current_user()
-        for greeting in greetings:
-            if greeting.author:
-                author = greeting.author.email
-                if user and user.user_id() == greeting.author.identity:
-                    author += ' (You)'
-                self.response.write('<b>%s</b> wrote:' % author)
-            else:
-                self.response.write('An anonymous person wrote:')
-            self.response.write('<blockquote>%s</blockquote>' %
-                                cgi.escape(greeting.content))
+    # Ancestor Queries, as shown here, are strongly consistent
+    # with the High Replication Datastore. Queries that span
+    # entity groups are eventually consistent. If we omitted the
+    # ancestor from this query there would be a slight chance that
+    # Greeting that had just been written would not show up in a
+    # query.
+    # [START query]
+    greetings_query = Greeting.query(
+        ancestor=guestbook_key(guestbook_name)).order(-Greeting.date)
+    greetings = greetings_query.fetch(10)
+    # [END query]
 
-        if user:
-            url = users.create_logout_url(self.request.uri)
-            url_linktext = 'Logout'
+    user = users.get_current_user()
+    for greeting in greetings:
+        if greeting.author:
+            author = greeting.author.email
+            if user and user.user_id() == greeting.author.identity:
+                author += ' (You)'
+            html = render_template_string(html + '<b>%s</b> wrote:' % author)
+
         else:
-            url = users.create_login_url(self.request.uri)
-            url_linktext = 'Login'
+            html = render_template_string(html + 'An anonymous person wrote:')
+        html = render_template_string(html + '<blockquote>%s</blockquote>' %
+                                      cgi.escape(greeting.content))
 
-        # Write the submission form and the footer of the page
-        sign_query_params = urllib.urlencode({'guestbook_name':
-                                              guestbook_name})
-        self.response.write(MAIN_PAGE_FOOTER_TEMPLATE %
-                            (sign_query_params, cgi.escape(guestbook_name),
-                             url, url_linktext))
+    if user:
+        url = users.create_logout_url('/')
+        url_linktext = 'Logout'
+    else:
+        url = users.create_login_url('/')
+        url_linktext = 'Login'
+
+    # Write the submission form and the footer of the page
+    sign_query_params = urllib.urlencode({'guestbook_name':
+                                          guestbook_name})
+    html = render_template_string(
+        html + (MAIN_PAGE_FOOTER_TEMPLATE %
+                (sign_query_params, cgi.escape(guestbook_name),
+                 url, url_linktext)))
+    return html
 # [END main_page]
 
+
 # [START guestbook]
-class Guestbook(webapp2.RequestHandler):
-    def post(self):
+@app.route('/sign', methods=['POST'])
+def guestbook():
+    if request.args.get('guestbook_name'):
+        guestbook_name = request.args.get('guestbook_name')
+    else:
+        guestbook_name = DEFAULT_GUESTBOOK_NAME
+
         # We set the same parent key on the 'Greeting' to ensure each
         # Greeting is in the same entity group. Queries across the
         # single entity group will be consistent. However, the write
         # rate to a single entity group should be limited to
         # ~1/second.
-        guestbook_name = self.request.get('guestbook_name',
-                                          DEFAULT_GUESTBOOK_NAME)
-        greeting = Greeting(parent=guestbook_key(guestbook_name))
+    greeting = Greeting(parent=guestbook_key(guestbook_name))
 
-        if users.get_current_user():
-            greeting.author = Author(
-                    identity=users.get_current_user().user_id(),
-                    email=users.get_current_user().email())
+    if users.get_current_user():
+        greeting.author = Author(
+            identity=users.get_current_user().user_id(),
+            email=users.get_current_user().email())
 
-        greeting.content = self.request.get('content')
-        greeting.put()
+    greeting.content = request.form['content']
+    greeting.put()
 
-        query_params = {'guestbook_name': guestbook_name}
-        self.redirect('/?' + urllib.urlencode(query_params))
-# [END guestbook]
-
-app = webapp2.WSGIApplication([
-    ('/', MainPage),
-    ('/sign', Guestbook),
-], debug=True)
+    query_params = {'guestbook_name': guestbook_name}
+    return redirect('/?' + urllib.urlencode(query_params))
