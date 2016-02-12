@@ -7,6 +7,13 @@ Users can read & write text messages and optionally log-in with their Google
 account. Messages are stored in App Engine (NoSQL) High Replication Datastore
 (HRD) and retrieved using a strongly consistent(ancestor) query.
 
+## Steps
+- [Hello World][hello]
+- [Using the Users' API][users]
+- [Handling Forms][forms]
+- [Using the Datastore][datastore]
+ 
+
 ## Products
 - [App Engine][1]
 
@@ -31,3 +38,7 @@ account. Messages are stored in App Engine (NoSQL) High Replication Datastore
 [7]: http://twitter.github.com/bootstrap/
 [8]: https://github.com/GoogleCloudPlatform/appengine-guestbook-python
 [9]: https://github.com/GoogleCloudPlatform/appengine-flask-skeleton
+[hello]: https://github.com/jeffgodwyll/appengine-flask-guestbook/tree/part1-helloworld
+[users]: https://github.com/jeffgodwyll/appengine-flask-guestbook/tree/part2-usingusers
+[forms]: https://github.com/jeffgodwyll/appengine-flask-guestbook/tree/part3-handlingforms
+[datastore]: https://github.com/jeffgodwyll/appengine-flask-guestbook/tree/part4-usingdatastore
